@@ -27,7 +27,7 @@ theme_set(theme_minimal())
 
 # Create the data
 
-The data is augmented to 
+The data is augmented with the Compare column, to provide clues for the final comparative plot.
 ```{r}
 medals <- data_frame(
   Country = as.factor(c("United States of America", "People's Republic of China", 
@@ -48,6 +48,7 @@ medals_tidy <- medals %>%
   gather(Year, Medals, `2008`:`1992`) %>%
   filter(Year != "1992" | Country != "Russian Federation")
 
+# Order the countries on the 2008 results.
 sorted_countries <-
   medals_tidy %>%
   filter(Year == "2008", Country != "All") %>%
