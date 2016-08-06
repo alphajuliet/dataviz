@@ -1,0 +1,175 @@
+---
+title: "Olympic Medals"
+author: "AndrewJ"
+date: "6 August 2016"
+output: html_document
+---
+
+# Description
+
+As an exercise in increasing my `ggplot2` skills, replicate as best we can the plots of Olympic medals from chapter 3 of *Data Visualisation* by Andy Kirk. 
+
+# Setup
+
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(ggplot2)
+library(cowplot)
+library(grid)
+library(RColorBrewer)
+library(formattable)
+theme_set(theme_minimal())
+```
+
+# Create the data
+
+The data is augmented to 
+```{r}
+medals <- data_frame(
+  Country = as.factor(c("United States of America", "People's Republic of China", 
+              "Russian Federation", "Great Britain", "Australia", "Germany", 
+              "France", "Republic of Korea", "All")),
+  `2008` = c(110, 100, 72, 47, 46, 41, 40, 31, 951),
+  `2004` = c(103, 63, 92, 30, 49, 49, 33, 30, 929),
+  `2000` = c(92, 59, 88, 28, 58, 56, 38, 28, 925),
+  `1996` = c(101, 50, 63, 15, 41, 65, 37, 27, 842),
+  `1992` = c(108, 54, 112, 20, 27, 82, 29, 29, 815)
+)
+
+# Set up the comparisons for the last plot between China and Germany
+medals$Compare <- as.factor(c(0, 1, 0, 0, 0, 2, 0, 0, 0))
+
+medals_tidy <- medals %>%
+  arrange(`2008`) %>%
+  gather(Year, Medals, `2008`:`1992`) %>%
+  filter(Year != "1992" | Country != "Russian Federation")
+
+sorted_countries <-
+  medals_tidy %>%
+  filter(Year == "2008", Country != "All") %>%
+  select(Country)
+sorted_countries <- as.character(sorted_countries$Country)
+```
+
+# Plots
+
+Floating bar chart of medal ranges over all the years (page 73)
+
+```{r}
+medals_min_max <- 
+  medals_tidy %>%
+  group_by(Country) %>%
+  summarise(Min = min(Medals), Max = max(Medals))
+```
+
+```{r}
+medals_min_max %>%
+  filter(Country != "All") %>%
+  ggplot() +
+  geom_crossbar(
+    aes(x = Country, y = Min, ymin = Min, ymax = Max),
+    fill = "lightblue", width = 0.3, linetype = 0) +
+  coord_flip() +
+  scale_x_discrete(limits = rev(sorted_countries)) +
+  scale_y_continuous(breaks = seq(0, 120, 20), limits = c(0, 120)) +
+  theme(
+    axis.title = element_blank(),
+    axis.text.y = element_text(face = "bold"),
+    panel.grid.major.y = element_blank())
+```
+
+Floating bar chart of percentages (page 74)
+
+```{r}
+# Add percentages of "All". Not sure how to do this in dplyr
+medals_min_max$MinPct <- as.numeric(sapply(medals_min_max$Min, 
+                                function (x) x/medals_min_max[1, "Min"]))
+medals_min_max$MaxPct <- as.numeric(sapply(medals_min_max$Max, 
+                                function (x) x/medals_min_max[1, "Max"]))
+
+medals_min_max %>%
+  filter(Country != "All") %>%
+  mutate(
+    MinPct = percent(MinPct, digits = 1), 
+    MaxPct = percent(MaxPct, digits = 1)) %>%
+  ggplot() +
+  geom_crossbar(
+    aes(x = Country, y = MinPct, ymin = MinPct, ymax = MaxPct),
+    fill = "lightblue", width = 0.3, linetype = 0) +
+  coord_flip() +
+  scale_x_discrete(
+    limits = rev(sorted_countries)) +
+  scale_y_continuous(
+    breaks = percent(seq(0, 0.14, 0.02), digits = 1), 
+    limits = c(0, 0.14)) +
+  theme(
+    axis.title = element_blank(),
+    axis.text.y = element_text(face = "bold"),
+    panel.grid.major.y = element_blank())
+```
+
+Line graph of medals by years by country (page 75). Not yet able to put the y-axis on the RHS.
+
+```{r}
+medals_tidy %>%
+  filter(Country != "All") %>%
+  ggplot(aes(x = Year, y = Medals, colour = Country, group = Country)) +
+  geom_line(size = 1.1) +
+  scale_y_continuous(
+    breaks = seq(0, 120, 20), limits = c(0, 120)) +
+  scale_colour_discrete(
+    limits=rev(sorted_countries)) +
+  scale_colour_brewer(palette = "Set2") +
+  theme(
+    panel.grid.major.x = element_blank(),
+    axis.title = element_blank(),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 8),
+    legend.position = "top")
+#ggdraw(switch_axis_position(p, axis = 'y'))
+```
+
+The final line plot on page 77, sorta. Not sure how to do the subtitle.
+
+```{r}
+colour1 <- "#7799ee"
+colour2 <- "orange"
+
+medals_tidy %>%
+  filter(Country != "All") %>%
+  ggplot(aes(x = Year, y = Medals, colour = Country, group = Country)) +
+  geom_line(aes(size = Compare, colour = Compare)) +
+
+  guides(colour = FALSE, size = FALSE) + 
+  scale_y_continuous(limits = c(0, 120)) +
+  scale_size_manual(values = c(1, 1.2, 1.2)) +
+  scale_colour_manual(values = c("#eeeeee", colour2, colour1)) +
+
+  theme(
+    panel.grid.major.x = element_blank(),
+    axis.title = element_blank(),
+    axis.line.x = element_line(colour = "#999999", size = 1.2),
+    axis.text.x = element_text(face = "bold", margin = margin(t = -5, b = 5)),
+    axis.text.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    plot.title = element_text(face = "bold", size = 10, hjust = 0)) +
+    ggtitle("The Contrasting Fortunes of German and Chinese Olympic Success") +
+
+  # LHS
+  annotate(geom = "text", x = 0.75, y = 82, size = 3,
+           label = "Germany\n10.1%", colour = colour1) +
+  annotate(geom = "text", x = 0.75, y = 54, size = 3,
+           label = "China\n6.6%", colour = colour2) +
+  
+  # RHS
+  annotate(geom = "text", x = 5.25, y = 41, size = 3,
+           label = "4.3%", colour = colour1) +
+  annotate(geom = "text", x = 5.25, y = 100, size = 3,
+           label = "10.5%", colour = colour2)
+
+```
+
